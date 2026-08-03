@@ -1,0 +1,21 @@
+id = "gfanton.proj"
+name = "proj"
+version = "0.1.0"
+min_herdr_version = "0.7.3"
+description = "Open local git projects as herdr workspaces"
+platforms = ["linux", "macos"]
+
+# No [[build]] block on purpose: the binary is built by the packaging layer, and
+# herdr skips manifest build commands for plugins that were linked rather than
+# installed from the marketplace.
+
+# The picker is a popup pane rather than an action so herdr owns the modal
+# surface — it hands the process every keystroke including Escape, and restores
+# the pane underneath when the command exits.
+[[panes]]
+id = "picker"
+title = "Open project"
+placement = "popup"
+width = "80%"
+height = 20
+command = ["./bin/proj-herdr", "workspace", "pick"]
