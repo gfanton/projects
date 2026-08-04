@@ -78,6 +78,7 @@ Use 'proj-herdr <subcommand> -h' for more information about a specific command.`
 		},
 		Subcommands: []*ff.Command{
 			newWorkspaceCommand(logger, projectsCfg, projectsLogger),
+			newAgentCommand(logger),
 			newVersionCommand(),
 		},
 	}
