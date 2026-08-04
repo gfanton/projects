@@ -20,7 +20,7 @@
     let
       # Global shared version for all packages and systems
       # This version is automatically updated by the release script
-      projectVersion = "0.18.0";
+      projectVersion = "0.19.0";
     in
     flake-utils.lib.eachDefaultSystem (
       system:
