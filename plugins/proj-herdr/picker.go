@@ -115,9 +115,11 @@ func (m pickerModel) View() string {
 	b.WriteString(m.input.View())
 	b.WriteString("\n\n")
 
+	// The failed search keeps the previous ranking, so the list is still drawn
+	// under the message: hiding it would leave Enter selecting a row the user
+	// can no longer see.
 	if m.err != nil {
 		fmt.Fprintf(&b, "  search failed: %v\n", m.err)
-		return b.String()
 	}
 
 	if len(m.results) == 0 {

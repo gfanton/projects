@@ -105,10 +105,10 @@ func TestEnsureWorkspaceFocusesExisting(t *testing.T) {
 }
 
 func TestEnsureWorkspaceCreatesWhenMissing(t *testing.T) {
-	// list (empty) -> pane list (nothing to adopt) -> create -> list (present)
+	// A label this plugin does not own has no stale form to adopt, so no pane
+	// lookup happens: list (empty) -> create -> list (present).
 	runner := &stubRunner{replies: [][]byte{
 		[]byte(emptyWorkspaceListJSON),
-		[]byte(`{"id":"cli:pane:list","result":{"panes":[]}}`),
 		[]byte(`{"id":"cli:workspace:create","result":{}}`),
 		[]byte(workspaceListJSON),
 	}}
@@ -128,7 +128,7 @@ func TestEnsureWorkspaceCreatesWhenMissing(t *testing.T) {
 		"--label", "nixpkgs",
 		"--focus",
 	}
-	if len(runner.calls) < 3 || !slices.Equal(runner.calls[2], wantCreate) {
+	if len(runner.calls) < 2 || !slices.Equal(runner.calls[1], wantCreate) {
 		t.Errorf("create call = %v, want %v", runner.calls, wantCreate)
 	}
 }

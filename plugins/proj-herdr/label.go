@@ -19,6 +19,26 @@ func workspaceLabel(namespace, name string) string {
 	return workspacePrefix + namespace + "/" + name
 }
 
+// projectNameFromLabel returns the <name> segment of a proj-managed label, or
+// "" when the label is not one of ours.
+//
+// The name is the part of a label that never moves: an abbreviation changes
+// when the set of checked-out organisations does, the project's own name does
+// not. That makes it the safe key for deciding whether a workspace is a stale
+// spelling of the one being opened.
+func projectNameFromLabel(label string) string {
+	rest, ok := strings.CutPrefix(label, workspacePrefix)
+	if !ok {
+		return ""
+	}
+
+	_, name, ok := strings.Cut(rest, "/")
+	if !ok {
+		return ""
+	}
+	return name
+}
+
 // projectFromWorkspaceLabel reports the <ns>/<name> a workspace was opened for,
 // or "" when the workspace is not proj-managed. The namespace is the shortened
 // one: workspaceLabel discards the rest, so the original cannot be recovered.

@@ -195,3 +195,22 @@ func TestPickerKeepsResultsWhenSearchFails(t *testing.T) {
 		t.Errorf("results = %d, want the previous %d kept", len(m.results), len(results))
 	}
 }
+
+// The list stays on screen when a search fails, because Enter still selects
+// from it — rendering only the error would hide what Enter would open.
+func TestPickerStillShowsResultsWhenSearchFails(t *testing.T) {
+	results := testResults()
+	m := newPickerModel(func(string) ([]*query.Result, error) {
+		return nil, errors.New("walk failed")
+	}, results)
+
+	m = sendKey(m, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("g")})
+
+	view := m.View()
+	if !strings.Contains(view, "search failed") {
+		t.Errorf("View() does not report the failure:\n%s", view)
+	}
+	if !strings.Contains(view, "gfanton/nixpkgs") {
+		t.Errorf("View() hides the results Enter would still select:\n%s", view)
+	}
+}

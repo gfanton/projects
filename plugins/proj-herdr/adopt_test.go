@@ -173,3 +173,37 @@ func TestWorkspacesPropagatesRunnerFailure(t *testing.T) {
 		t.Fatal("WorkspaceByLabel() error = nil, want the runner failure")
 	}
 }
+
+// A pane's cwd is mutable shell state, not project identity: cd-ing a pane of
+// one project into another project's directory must not let that workspace be
+// renamed and repurposed. Only a workspace naming the SAME project is stale.
+const hijackWorkspaceListJSON = `{"id":"cli:workspace:list","result":{"type":"workspace_list","workspaces":[` +
+	`{"focused":false,"label":"p/gf/goforge","workspace_id":"wC"}]}}`
+
+const hijackPaneListJSON = `{"id":"cli:pane:list","result":{"panes":[` +
+	`{"cwd":"/root/gnolang/gno","workspace_id":"wC","pane_id":"wC:p4"}]}}`
+
+func TestEnsureWorkspaceDoesNotAdoptAnotherProjectsWorkspace(t *testing.T) {
+	runner := &stubRunner{replies: [][]byte{
+		[]byte(hijackWorkspaceListJSON), // no p/gnol/gno
+		[]byte(hijackPaneListJSON),      // a goforge pane has cd'd into gno
+		[]byte(`{"result":{}}`),         // create
+		[]byte(`{"id":"cli:workspace:list","result":{"type":"workspace_list","workspaces":[` +
+			`{"focused":true,"label":"p/gnol/gno","workspace_id":"wE"}]}}`),
+	}}
+	svc := NewHerdrService(testLogger(), runner)
+
+	ws, err := svc.EnsureWorkspace(context.Background(), "p/gnol/gno", "/root/gnolang/gno", true)
+	if err != nil {
+		t.Fatalf("EnsureWorkspace() error = %v", err)
+	}
+	if ws.ID != "wE" {
+		t.Errorf("ID = %q, want the newly created %q", ws.ID, "wE")
+	}
+
+	for _, c := range runner.calls {
+		if len(c) > 1 && c[0] == "workspace" && c[1] == "rename" {
+			t.Errorf("renamed another project's workspace: %v", c)
+		}
+	}
+}

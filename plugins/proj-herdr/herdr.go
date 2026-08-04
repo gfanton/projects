@@ -8,7 +8,6 @@ import (
 	"log/slog"
 	"path/filepath"
 	"slices"
-	"strings"
 )
 
 // ErrWorkspaceNotFound reports that no workspace carries the requested label
@@ -134,7 +133,7 @@ func (s *HerdrService) EnsureWorkspace(ctx context.Context, label, dir string, c
 		// checked out, so cloning a new one can leave open workspaces under a
 		// name this build no longer produces. Adopt such a workspace instead of
 		// opening a second one onto the same directory.
-		if stale, ok, err := s.managedWorkspaceAt(ctx, list, dir); err != nil {
+		if stale, ok, err := s.managedWorkspaceAt(ctx, list, label, dir); err != nil {
 			return Workspace{}, err
 		} else if ok {
 			if err := s.renameWorkspace(ctx, stale.ID, label); err != nil {
@@ -188,7 +187,18 @@ type paneListResponse struct {
 //
 // Workspaces this plugin did not open are never adopted, so a hand-made
 // workspace that happens to sit on the same directory is left alone.
-func (s *HerdrService) managedWorkspaceAt(ctx context.Context, list []Workspace, dir string) (Workspace, bool, error) {
+//
+// The directory alone is not enough. A pane's cwd is shell state that any `cd`
+// moves, so a pane belonging to one project can be sitting in another's
+// directory; adopting on that basis would rename a workspace the user is still
+// using, out from under them. The project name in the label has to agree too —
+// it is the part of a label that an abbreviation change cannot alter.
+func (s *HerdrService) managedWorkspaceAt(ctx context.Context, list []Workspace, label, dir string) (Workspace, bool, error) {
+	name := projectNameFromLabel(label)
+	if name == "" {
+		return Workspace{}, false, nil
+	}
+
 	out, err := s.runner.Run(ctx, "pane", "list")
 	if err != nil {
 		return Workspace{}, false, fmt.Errorf("list panes: %w", err)
@@ -211,7 +221,7 @@ func (s *HerdrService) managedWorkspaceAt(ctx context.Context, list []Workspace,
 		}
 
 		i := slices.IndexFunc(list, func(w Workspace) bool {
-			return w.ID == p.WorkspaceID && strings.HasPrefix(w.Label, workspacePrefix)
+			return w.ID == p.WorkspaceID && projectNameFromLabel(w.Label) == name
 		})
 		if i >= 0 {
 			return list[i], true, nil
