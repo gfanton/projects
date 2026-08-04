@@ -45,10 +45,30 @@ builds:
       - -X main.date={{.Date}}
       - -X main.builtBy=goreleaser
 
+  # herdr declares linux and macos in plugins/proj-herdr/herdr-plugin.toml, so
+  # the binary is built for those two only.
+  - id: proj-herdr
+    main: ./plugins/proj-herdr
+    binary: proj-herdr
+    env:
+      - CGO_ENABLED=0
+    goos:
+      - linux
+      - darwin
+    goarch:
+      - amd64
+      - arm64
+    ldflags:
+      - -s -w
+      - -X main.version={{.Version}}
+      - -X main.commit={{.Commit}}
+      - -X main.date={{.Date}}
+      - -X main.builtBy=goreleaser
+
 archives:
   # Archive for proj (all platforms including Windows)
   - id: proj
-    builds:
+    ids:
       - proj
     formats:
       - tar.gz
@@ -66,12 +86,28 @@ archives:
 
   # Archive for proj-tmux (linux/darwin only, no Windows)
   - id: proj-tmux
-    builds:
+    ids:
       - proj-tmux
     formats:
       - tar.gz
     name_template: >-
       proj-tmux_
+      {{- title .Os }}_
+      {{- if eq .Arch "amd64" }}x86_64
+      {{- else }}{{ .Arch }}{{ end }}
+
+  # Archive for proj-herdr. The plugin manifest ships alongside the binary
+  # because herdr reads it from the plugin directory, not from the binary.
+  - id: proj-herdr
+    ids:
+      - proj-herdr
+    formats:
+      - tar.gz
+    files:
+      - src: plugins/proj-herdr/herdr-plugin.toml
+        dst: herdr-plugin.toml
+    name_template: >-
+      proj-herdr_
       {{- title .Os }}_
       {{- if eq .Arch "amd64" }}x86_64
       {{- else }}{{ .Arch }}{{ end }}
@@ -97,9 +133,10 @@ changelog:
 nfpms:
   - id: proj
     package_name: proj
-    builds:
+    ids:
       - proj
       - proj-tmux
+      - proj-herdr
     vendor: gfanton
     homepage: https://github.com/gfanton/project
     maintainer: gfanton <gfanton@example.com>

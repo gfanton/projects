@@ -20,7 +20,7 @@
     let
       # Global shared version for all packages and systems
       # This version is automatically updated by the release script
-      projectVersion = "0.17.0";
+      projectVersion = "0.18.0";
     in
     flake-utils.lib.eachDefaultSystem (
       system:
@@ -35,7 +35,7 @@
           src = ./.;
 
           # Vendor hash - updated by release script or manually during development
-          vendorHash = "sha256-Mg+5sCVo2EruD1NSPCgG2y8JncTQ+HCoMTCEsIpC4gM=";
+          vendorHash = "sha256-wZZsEXvuLfPDO4/+Rbr4qZxPsDLOrKC/4nKwoubfYV8=";
 
           # Override build flags to not use vendor mode
           buildFlags = [ "-mod=mod" ];
@@ -95,7 +95,7 @@
           src = ./.;
 
           # Same vendorHash as main project since they share go.mod
-          vendorHash = "sha256-Mg+5sCVo2EruD1NSPCgG2y8JncTQ+HCoMTCEsIpC4gM=";
+          vendorHash = "sha256-wZZsEXvuLfPDO4/+Rbr4qZxPsDLOrKC/4nKwoubfYV8=";
 
           # Override build flags to not use vendor mode
           buildFlags = [ "-mod=mod" ];
@@ -115,6 +115,43 @@
             license = licenses.mit;
             maintainers = [ "gfanton" ];
             mainProgram = "proj-tmux";
+          };
+        };
+
+        # Define proj-herdr package
+        projHerdrPackage = pkgs.buildGoModule rec {
+          pname = "proj-herdr";
+          version = projectVersion;
+
+          src = ./.;
+
+          # Same vendorHash as main project since they share go.mod
+          vendorHash = "sha256-wZZsEXvuLfPDO4/+Rbr4qZxPsDLOrKC/4nKwoubfYV8=";
+
+          # Override build flags to not use vendor mode
+          buildFlags = [ "-mod=mod" ];
+
+          ldflags = [
+            "-s"
+            "-w"
+            "-X main.version=${version}"
+          ];
+
+          # Build from plugins/proj-herdr
+          subPackages = [ "plugins/proj-herdr" ];
+
+          # herdr loads a plugin from a directory holding the manifest, with the
+          # binary under bin/, so the manifest ships beside it.
+          postInstall = ''
+            install -Dm444 plugins/proj-herdr/herdr-plugin.toml -t $out
+          '';
+
+          meta = with pkgs.lib; {
+            description = "Herdr integration for proj";
+            homepage = "https://github.com/gfanton/project";
+            license = licenses.mit;
+            maintainers = [ "gfanton" ];
+            mainProgram = "proj-herdr";
           };
         };
 
@@ -159,6 +196,7 @@
           default = projectPackage;
           project = projectPackage;
           proj-tmux = projTmuxPackage;
+          proj-herdr = projHerdrPackage;
           tmux-proj = tmuxProjPackage;
         };
 
@@ -273,7 +311,7 @@
             pname = "project";
             version = projectVersion;
             src = ./.;
-            vendorHash = "sha256-Mg+5sCVo2EruD1NSPCgG2y8JncTQ+HCoMTCEsIpC4gM=";
+            vendorHash = "sha256-wZZsEXvuLfPDO4/+Rbr4qZxPsDLOrKC/4nKwoubfYV8=";
             buildFlags = [ "-mod=mod" ];
             ldflags = [
               "-s"
