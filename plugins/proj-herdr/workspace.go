@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 
@@ -48,7 +49,7 @@ already exist.`,
 		Flags: fs,
 		Exec: func(ctx context.Context, args []string) error {
 			if len(args) < 1 {
-				return fmt.Errorf("project name is required")
+				return errors.New("project name is required")
 			}
 			return runWorkspaceOpen(ctx, logger, projectsCfg, projectsLogger, args[0], create)
 		},

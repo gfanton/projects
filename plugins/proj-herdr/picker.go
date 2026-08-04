@@ -42,34 +42,33 @@ func (m pickerModel) Init() tea.Cmd {
 }
 
 func (m pickerModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
-	key, ok := msg.(tea.KeyMsg)
-	if !ok {
-		return m, nil
-	}
+	if key, ok := msg.(tea.KeyMsg); ok {
+		switch key.Type {
+		case tea.KeyCtrlC, tea.KeyEsc:
+			m.quitting = true
+			return m, tea.Quit
 
-	switch key.Type {
-	case tea.KeyCtrlC, tea.KeyEsc:
-		m.quitting = true
-		return m, tea.Quit
+		case tea.KeyEnter:
+			if len(m.results) > 0 {
+				m.chosen = m.results[m.cursor]
+			}
+			m.quitting = true
+			return m, tea.Quit
 
-	case tea.KeyEnter:
-		if len(m.results) > 0 {
-			m.chosen = m.results[m.cursor]
+		case tea.KeyUp, tea.KeyCtrlP:
+			m.moveCursor(-1)
+			return m, nil
+
+		case tea.KeyDown, tea.KeyCtrlN:
+			m.moveCursor(1)
+			return m, nil
 		}
-		m.quitting = true
-		return m, tea.Quit
-
-	case tea.KeyUp, tea.KeyCtrlP:
-		m.moveCursor(-1)
-		return m, nil
-
-	case tea.KeyDown, tea.KeyCtrlN:
-		m.moveCursor(1)
-		return m, nil
 	}
 
-	// Anything else edits the query, so the ranking is recomputed and the
-	// highlight returns to the best match.
+	// Everything else goes to the text input, including the cursor's own blink
+	// ticks: swallowing those stops the blink after the first one. A message
+	// that changes the query recomputes the ranking and returns the highlight
+	// to the best match.
 	before := m.input.Value()
 
 	var cmd tea.Cmd

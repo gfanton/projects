@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"path/filepath"
 	"slices"
 	"strings"
 )
@@ -22,6 +23,26 @@ var ErrTabNotFound = errors.New("tab not found")
 // answers every command with JSON, so callers decode rather than parse text.
 type commandRunner interface {
 	Run(ctx context.Context, args ...string) ([]byte, error)
+}
+
+// errorReply is herdr's failure shape. It arrives in the same envelope as a
+// success and simply omits `result`, so decoding one straight into a result
+// type yields an empty list rather than an error — a herdr that is failing
+// would read as a herdr with nothing open.
+type errorReply struct {
+	Error *struct {
+		Code    string `json:"code"`
+		Message string `json:"message"`
+	} `json:"error"`
+}
+
+// decodeReply rejects an error envelope before unmarshalling into v.
+func decodeReply(out []byte, v any) error {
+	var reply errorReply
+	if err := json.Unmarshal(out, &reply); err == nil && reply.Error != nil {
+		return fmt.Errorf("herdr %s: %s", reply.Error.Code, reply.Error.Message)
+	}
+	return json.Unmarshal(out, v)
 }
 
 // ---- Workspaces
@@ -60,7 +81,7 @@ func (s *HerdrService) workspaces(ctx context.Context) ([]Workspace, error) {
 	}
 
 	var resp workspaceListResponse
-	if err := json.Unmarshal(out, &resp); err != nil {
+	if err := decodeReply(out, &resp); err != nil {
 		return nil, fmt.Errorf("decode workspace list: %w", err)
 	}
 
@@ -174,23 +195,29 @@ func (s *HerdrService) managedWorkspaceAt(ctx context.Context, list []Workspace,
 	}
 
 	var panes paneListResponse
-	if err := json.Unmarshal(out, &panes); err != nil {
+	if err := decodeReply(out, &panes); err != nil {
 		return Workspace{}, false, fmt.Errorf("decode pane list: %w", err)
 	}
 
-	i := slices.IndexFunc(panes.Result.Panes, func(p pane) bool { return p.Cwd == dir })
-	if i < 0 {
-		return Workspace{}, false, nil
-	}
+	// Every pane at the directory is considered, not just the first: a workspace
+	// opened by hand can sit on the same path, and stopping at it would skip the
+	// managed workspace this exists to find. Paths are cleaned because herdr and
+	// the project engine can spell the same directory differently.
+	want := filepath.Clean(dir)
 
-	id := panes.Result.Panes[i].WorkspaceID
-	j := slices.IndexFunc(list, func(w Workspace) bool {
-		return w.ID == id && strings.HasPrefix(w.Label, workspacePrefix)
-	})
-	if j < 0 {
-		return Workspace{}, false, nil
+	for _, p := range panes.Result.Panes {
+		if filepath.Clean(p.Cwd) != want {
+			continue
+		}
+
+		i := slices.IndexFunc(list, func(w Workspace) bool {
+			return w.ID == p.WorkspaceID && strings.HasPrefix(w.Label, workspacePrefix)
+		})
+		if i >= 0 {
+			return list[i], true, nil
+		}
 	}
-	return list[j], true, nil
+	return Workspace{}, false, nil
 }
 
 func (s *HerdrService) renameWorkspace(ctx context.Context, id, label string) error {
@@ -228,7 +255,7 @@ func (s *HerdrService) tabs(ctx context.Context, workspaceID string) ([]Tab, err
 	}
 
 	var resp tabListResponse
-	if err := json.Unmarshal(out, &resp); err != nil {
+	if err := decodeReply(out, &resp); err != nil {
 		return nil, fmt.Errorf("decode tab list: %w", err)
 	}
 

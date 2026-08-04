@@ -4,6 +4,7 @@ import (
 	"io/fs"
 	"log/slog"
 	"slices"
+	"strings"
 
 	"github.com/gfanton/projects/internal/project"
 )
@@ -44,13 +45,11 @@ func shortestUniquePrefixes(orgs []string) namespaces {
 }
 
 // sharedBy reports whether an organisation other than org also starts with
-// prefix.
+// prefix. A byte-wise prefix test is exact here because UTF-8 is prefix-free
+// and the caller only ever cuts prefix on a rune boundary.
 func sharedBy(orgs []string, org, prefix string) bool {
 	return slices.ContainsFunc(orgs, func(other string) bool {
-		if other == org || len([]rune(other)) < len([]rune(prefix)) {
-			return false
-		}
-		return string([]rune(other)[:len([]rune(prefix))]) == prefix
+		return other != org && strings.HasPrefix(other, prefix)
 	})
 }
 

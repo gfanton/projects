@@ -14,21 +14,26 @@ type pathResolver interface {
 // repository as a workspace; a branch result reuses that workspace and adds a
 // tab for the branch checkout, so every branch of a project shares one entry in
 // the sidebar instead of competing for top level space.
+// The two directories are separate because a workspace outlives the result
+// that opened it: rooting it at a branch checkout because a branch happened to
+// be picked first would persist for every later open, since those match on the
+// label alone.
 type target struct {
 	WorkspaceLabel string
+	WorkspaceDir   string
 	TabLabel       string
-	Dir            string
+	TabDir         string
 }
 
 func targetOf(r *query.Result, paths pathResolver, ns namespaces) target {
 	t := target{
 		WorkspaceLabel: workspaceLabel(ns.short(r.Project.Organisation), r.Project.Name),
-		Dir:            r.Project.Path,
+		WorkspaceDir:   r.Project.Path,
 	}
 
 	if r.Workspace != "" {
 		t.TabLabel = r.Workspace
-		t.Dir = paths.WorkspacePath(*r.Project, r.Workspace)
+		t.TabDir = paths.WorkspacePath(*r.Project, r.Workspace)
 	}
 	return t
 }

@@ -69,21 +69,21 @@ func openTarget(ctx context.Context, logger *slog.Logger, rootDir string, result
 	svc := NewHerdrService(logger, newExecRunnerFromEnv(logger))
 	t := targetOf(result, workspace.NewService(logger, rootDir), scanNamespaces(logger, rootDir))
 
-	ws, err := svc.EnsureWorkspace(ctx, t.WorkspaceLabel, t.Dir, true)
+	ws, err := svc.EnsureWorkspace(ctx, t.WorkspaceLabel, t.WorkspaceDir, true)
 	if err != nil {
 		return err
 	}
 
 	if t.TabLabel == "" {
-		logger.Info("workspace open", "workspace_id", ws.ID, "label", ws.Label)
+		logger.Debug("workspace open", "workspace_id", ws.ID, "label", ws.Label)
 		return nil
 	}
 
-	tab, err := svc.EnsureTab(ctx, ws.ID, t.TabLabel, t.Dir)
+	tab, err := svc.EnsureTab(ctx, ws.ID, t.TabLabel, t.TabDir)
 	if err != nil {
 		return err
 	}
 
-	logger.Info("workspace open", "workspace_id", ws.ID, "tab_id", tab.ID, "branch", t.TabLabel)
+	logger.Debug("workspace open", "workspace_id", ws.ID, "tab_id", tab.ID, "branch", t.TabLabel)
 	return nil
 }

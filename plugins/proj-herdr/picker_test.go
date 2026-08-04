@@ -1,6 +1,9 @@
 package main
 
 import (
+	"errors"
+	"fmt"
+	"strings"
 	"testing"
 
 	tea "github.com/charmbracelet/bubbletea"
@@ -101,5 +104,94 @@ func TestPickerTypingResetsCursorToFirstMatch(t *testing.T) {
 
 	if m.cursor != 0 {
 		t.Errorf("cursor = %d, want 0 after the query changed", m.cursor)
+	}
+}
+
+func manyResults(n int) []*query.Result {
+	out := make([]*query.Result, 0, n)
+	for i := range n {
+		out = append(out, &query.Result{
+			Project: &project.Project{Organisation: "org", Name: fmt.Sprintf("repo%02d", i)},
+		})
+	}
+	return out
+}
+
+// The window has to follow the cursor: with more results than rows, scrolling
+// past the bottom must move offset, or the highlighted row leaves the screen
+// and the user selects something they cannot see.
+func TestPickerWindowFollowsCursorPastTheBottom(t *testing.T) {
+	results := manyResults(30)
+	m := newPickerModel(staticSearch(results), results)
+
+	for range visibleRows + 7 {
+		m = sendKey(m, tea.KeyMsg{Type: tea.KeyDown})
+	}
+
+	if m.cursor != visibleRows+7 {
+		t.Fatalf("cursor = %d, want %d", m.cursor, visibleRows+7)
+	}
+	if want := m.cursor - visibleRows + 1; m.offset != want {
+		t.Errorf("offset = %d, want %d", m.offset, want)
+	}
+	if m.cursor < m.offset || m.cursor >= m.offset+visibleRows {
+		t.Errorf("cursor %d outside window [%d,%d)", m.cursor, m.offset, m.offset+visibleRows)
+	}
+
+	view := m.View()
+	if !strings.Contains(view, "> org/repo19") {
+		t.Errorf("View() does not show the highlighted row:\n%s", view)
+	}
+	if strings.Contains(view, "org/repo00") {
+		t.Errorf("View() still shows the first row after scrolling:\n%s", view)
+	}
+}
+
+// Scrolling back up has to pull the window with it.
+func TestPickerWindowFollowsCursorBackUp(t *testing.T) {
+	results := manyResults(30)
+	m := newPickerModel(staticSearch(results), results)
+
+	for range 20 {
+		m = sendKey(m, tea.KeyMsg{Type: tea.KeyDown})
+	}
+	for range 18 {
+		m = sendKey(m, tea.KeyMsg{Type: tea.KeyUp})
+	}
+
+	if m.cursor != 2 {
+		t.Fatalf("cursor = %d, want 2", m.cursor)
+	}
+	if m.offset > m.cursor {
+		t.Errorf("offset %d is below cursor %d — window did not follow back up", m.offset, m.cursor)
+	}
+}
+
+// A branch result must be distinguishable from its project in the list.
+func TestResultLabel(t *testing.T) {
+	proj := &project.Project{Organisation: "gfanton", Name: "nixpkgs"}
+
+	if got := resultLabel(&query.Result{Project: proj}); got != "gfanton/nixpkgs" {
+		t.Errorf("resultLabel(project) = %q, want %q", got, "gfanton/nixpkgs")
+	}
+	if got := resultLabel(&query.Result{Project: proj, Workspace: "feat/auth"}); got != "gfanton/nixpkgs@feat/auth" {
+		t.Errorf("resultLabel(branch) = %q, want %q", got, "gfanton/nixpkgs@feat/auth")
+	}
+}
+
+// A failed search keeps the last good ranking rather than blanking the list.
+func TestPickerKeepsResultsWhenSearchFails(t *testing.T) {
+	results := testResults()
+	m := newPickerModel(func(string) ([]*query.Result, error) {
+		return nil, errors.New("walk failed")
+	}, results)
+
+	m = sendKey(m, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("g")})
+
+	if m.err == nil {
+		t.Error("err = nil, want the search failure recorded")
+	}
+	if len(m.results) != len(results) {
+		t.Errorf("results = %d, want the previous %d kept", len(m.results), len(results))
 	}
 }

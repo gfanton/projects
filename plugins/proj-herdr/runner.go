@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"fmt"
@@ -41,7 +42,7 @@ func (r *execRunner) Run(ctx context.Context, args ...string) ([]byte, error) {
 		// Surface herdr's own message; Output() captures stderr on ExitError.
 		var exitErr *exec.ExitError
 		if errors.As(err, &exitErr) && len(exitErr.Stderr) > 0 {
-			return nil, fmt.Errorf("herdr %v: %w: %s", full, err, exitErr.Stderr)
+			return nil, fmt.Errorf("herdr %v: %w: %s", full, err, bytes.TrimSpace(exitErr.Stderr))
 		}
 		return nil, fmt.Errorf("herdr %v: %w", full, err)
 	}

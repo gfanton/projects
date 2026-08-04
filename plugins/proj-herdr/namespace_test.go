@@ -2,6 +2,8 @@ package main
 
 import (
 	"maps"
+	"os"
+	"path/filepath"
 	"testing"
 )
 
@@ -68,5 +70,36 @@ func TestNamespacesShortFallsBackToTheFullName(t *testing.T) {
 	// A project cloned since the set was computed still gets a usable label.
 	if got := ns.short("unseen"); got != "unseen" {
 		t.Errorf("short(unknown) = %q, want %q", got, "unseen")
+	}
+}
+
+// scanNamespaces feeds shortestUniquePrefixes from disk. If it collects
+// nothing, every organisation falls back to its full name, labels stop matching
+// the workspaces already open, and each project opens a duplicate.
+func TestScanNamespacesReadsOrganisationsFromDisk(t *testing.T) {
+	root := t.TempDir()
+	for _, p := range []string{"aeddi/gno-infra", "gfanton/nixpkgs", "gfanton/goforge", "gnolang/gno"} {
+		if err := os.MkdirAll(filepath.Join(root, p, ".git"), 0o755); err != nil {
+			t.Fatalf("seeding %s: %v", p, err)
+		}
+	}
+
+	ns := scanNamespaces(testLogger(), root)
+
+	want := map[string]string{"aeddi": "a", "gfanton": "gf", "gnolang": "gn"}
+	for org, short := range want {
+		if got := ns.short(org); got != short {
+			t.Errorf("short(%q) = %q, want %q", org, got, short)
+		}
+	}
+}
+
+// A root that cannot be walked must not be fatal: the caller still gets usable,
+// if longer, labels rather than an empty string.
+func TestScanNamespacesSurvivesAnUnreadableRoot(t *testing.T) {
+	ns := scanNamespaces(testLogger(), filepath.Join(t.TempDir(), "does-not-exist"))
+
+	if got := ns.short("gfanton"); got != "gfanton" {
+		t.Errorf("short() = %q, want the full name as fallback", got)
 	}
 }

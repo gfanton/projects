@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"errors"
+	"fmt"
 	"io"
 	"log/slog"
 	"slices"
@@ -22,8 +23,8 @@ const workspaceListJSON = `{"id":"cli:workspace:list","result":{"type":"workspac
 const emptyWorkspaceListJSON = `{"id":"cli:workspace:list","result":{"type":"workspace_list","workspaces":[]}}`
 
 // stubRunner returns canned output instead of executing the herdr binary, and
-// records the arguments of every call. Replies are consumed in order; the last
-// one is reused once exhausted.
+// records the arguments of every call. Replies are consumed in order, one per
+// call, and running out is an error rather than a silent reuse.
 type stubRunner struct {
 	replies [][]byte
 	err     error
@@ -35,8 +36,13 @@ func (r *stubRunner) Run(_ context.Context, args ...string) ([]byte, error) {
 	if r.err != nil {
 		return nil, r.err
 	}
-	i := min(len(r.calls)-1, len(r.replies)-1)
-	return r.replies[i], nil
+	// Running past the scripted replies means the code issued a herdr call the
+	// test did not anticipate. Reusing the last reply would hide that, so it is
+	// an error the caller surfaces instead.
+	if len(r.calls) > len(r.replies) {
+		return nil, fmt.Errorf("unscripted herdr call: %v", args)
+	}
+	return r.replies[len(r.calls)-1], nil
 }
 
 func testLogger() *slog.Logger {
@@ -75,7 +81,10 @@ func TestWorkspaceByLabel(t *testing.T) {
 }
 
 func TestEnsureWorkspaceFocusesExisting(t *testing.T) {
-	runner := &stubRunner{replies: [][]byte{[]byte(workspaceListJSON)}}
+	runner := &stubRunner{replies: [][]byte{
+		[]byte(workspaceListJSON),
+		[]byte(`{"id":"cli:workspace:focus","result":{}}`),
+	}}
 	svc := NewHerdrService(testLogger(), runner)
 
 	ws, err := svc.EnsureWorkspace(context.Background(), "nixpkgs", "/root/gfanton/nixpkgs", true)
@@ -145,7 +154,10 @@ const tabListJSON = `{"id":"cli:tab:list","result":{"tabs":[` +
 const emptyTabListJSON = `{"id":"cli:tab:list","result":{"tabs":[],"type":"tab_list"}}`
 
 func TestEnsureTabFocusesExisting(t *testing.T) {
-	runner := &stubRunner{replies: [][]byte{[]byte(tabListJSON)}}
+	runner := &stubRunner{replies: [][]byte{
+		[]byte(tabListJSON),
+		[]byte(`{"id":"cli:tab:focus","result":{}}`),
+	}}
 	svc := NewHerdrService(testLogger(), runner)
 
 	tab, err := svc.EnsureTab(context.Background(), "w7", "1", "/root/gfanton/nixpkgs")
@@ -298,16 +310,20 @@ func TestTargetOf(t *testing.T) {
 			result: query.Result{Project: proj},
 			want: target{
 				WorkspaceLabel: "p/gf/nixpkgs",
-				Dir:            "/root/gfanton/nixpkgs",
+				WorkspaceDir:   "/root/gfanton/nixpkgs",
 			},
 		},
 		{
+			// The workspace stays rooted at the repository: only the tab moves to
+			// the branch checkout, so picking a branch first does not permanently
+			// root the project's workspace inside a worktree.
 			name:   "branch adds a tab at the branch checkout",
 			result: query.Result{Project: proj, Workspace: "feat/auth"},
 			want: target{
 				WorkspaceLabel: "p/gf/nixpkgs",
+				WorkspaceDir:   "/root/gfanton/nixpkgs",
 				TabLabel:       "feat/auth",
-				Dir:            "/root/.workspace/nixpkgs/feat/auth",
+				TabDir:         "/root/.workspace/nixpkgs/feat/auth",
 			},
 		},
 	}
