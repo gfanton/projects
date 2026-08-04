@@ -188,11 +188,12 @@ type paneListResponse struct {
 // Workspaces this plugin did not open are never adopted, so a hand-made
 // workspace that happens to sit on the same directory is left alone.
 //
-// The directory alone is not enough. A pane's cwd is shell state that any `cd`
-// moves, so a pane belonging to one project can be sitting in another's
-// directory; adopting on that basis would rename a workspace the user is still
-// using, out from under them. The project name in the label has to agree too —
-// it is the part of a label that an abbreviation change cannot alter.
+// The directory alone is not enough. herdr's pane cwd follows the shell rather
+// than recording where the pane was spawned — confirmed by running cd in a pane
+// and watching the reported directory move — so a pane belonging to one project
+// can be standing in another's. Adopting on that basis would rename a workspace
+// the user is still using, out from under them. The project name in the label
+// has to agree too: it is the part a change of abbreviation cannot alter.
 func (s *HerdrService) managedWorkspaceAt(ctx context.Context, list []Workspace, label, dir string) (Workspace, bool, error) {
 	name := projectNameFromLabel(label)
 	if name == "" {

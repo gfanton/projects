@@ -15,9 +15,11 @@ const staleWorkspaceListJSON = `{"id":"cli:workspace:list","result":{"type":"wor
 
 // Shaped from a real `herdr pane list`: panes carry cwd and workspace_id, which
 // is the only exact link between a directory and a workspace.
-// foreground_cwd deliberately differs from cwd: adoption matches the pane's
-// spawn directory, so a shell that has cd'd away still keeps its workspace
-// adoptable. Equal values here would let a regression swap the fields unnoticed.
+// foreground_cwd deliberately differs from cwd so a regression swapping the two
+// cannot pass unnoticed. Adoption reads cwd, which tracks the shell: verified by
+// creating a workspace, running cd in its pane, and watching herdr report the
+// new directory. A workspace whose panes have all moved away is therefore not
+// adoptable — acceptable, because by then nothing in it is at the project.
 const paneListJSON = `{"id":"cli:pane:list","result":{"panes":[` +
 	`{"cwd":"/root/aeddi/gno-infra","foreground_cwd":"/root/aeddi/gno-infra/cmd","pane_id":"w9:p1","workspace_id":"w9"},` +
 	`{"cwd":"/root/elsewhere","foreground_cwd":"/tmp","pane_id":"w4:p1","workspace_id":"w4"}]}}`
